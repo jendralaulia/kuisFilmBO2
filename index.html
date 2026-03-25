@@ -18,19 +18,18 @@
         .option-btn:active:not(:disabled) { transform: scale(0.98); }
 
         .video-container { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 1rem; overflow: hidden; border: 3px solid #333; background-color: #000;}
+        
+        /* TOPENG BLUR - AWALNYA DISEMBUNYIKAN (opacity 0) */
         .video-mask { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); 
-            z-index: 10; pointer-events: none; 
-            display: flex; align-items: center; justify-content: center;
+            z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.5s ease;
         }
-        
-        .play-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20;
-            display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.85); cursor: pointer; transition: background 0.3s;
+        /* SAAT CLASS ACTIVE DITAMBAHKAN, TOPENG MUNCUL MENGHALANGI YOUTUBE */
+        .video-mask.active {
+            opacity: 1; pointer-events: auto; /* Mencegah pemain ngeklik pause YouTube */
         }
-        .play-overlay.ready:hover { background: rgba(0,0,0,0.6); }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -39,28 +38,29 @@
         
         <div class="bg-yellow-600/20 text-yellow-500 p-3 flex justify-between items-center border-b border-yellow-700/50">
             <div class="font-black text-sm"><i class="fa-solid fa-star"></i> <span id="score-display">0</span></div>
-            <div class="font-black text-sm">FILM <span id="q-number">1</span>/10</div>
+            <div class="font-black text-sm">FILM <span id="q-number">1</span>/<span id="total-q">10</span></div>
             <div class="font-black text-sm text-red-400"><i class="fa-solid fa-stopwatch"></i> <span id="timer-display">--</span></div>
         </div>
 
         <div class="p-4 flex-grow flex flex-col items-center relative overflow-y-auto">
             
-            <div id="video-stage" class="w-full flex flex-col items-center justify-center mt-4">
-                <h2 class="text-yellow-500 font-black text-xl mb-4 tracking-widest uppercase text-center">Dengarkan Dialog Ini!</h2>
+            <div id="video-stage" class="w-full flex flex-col items-center justify-center mt-2">
+                
+                <div id="instruction-box" class="bg-yellow-500/10 border border-yellow-500 p-3 rounded-xl mb-4 text-center w-full animate-pulse">
+                    <h2 id="instruction-text" class="text-yellow-500 font-black text-sm tracking-widest uppercase">
+                        <i class="fa-brands fa-youtube text-red-500 mr-1"></i> Klik Tombol Play YouTube di bawah!
+                    </h2>
+                    <p id="instruction-sub" class="text-gray-400 text-xs mt-1">Video akan otomatis disensor saat diputar.</p>
+                </div>
                 
                 <div class="video-container shadow-[0_0_30px_rgba(234,179,8,0.3)]">
                     <div id="yt-player"></div>
                     
                     <div class="video-mask" id="video-mask">
-                        <i class="fa-solid fa-film text-6xl text-white/10"></i>
-                    </div>
-
-                    <div class="play-overlay" id="play-overlay" onclick="playVideo()">
-                        <i id="play-icon" class="fa-solid fa-spinner fa-spin text-5xl text-gray-400 mb-2"></i>
-                        <p id="play-text" class="text-gray-400 font-bold tracking-widest text-sm uppercase mt-3">MEMUAT BIOSKOP...</p>
+                        <i class="fa-solid fa-ear-listen text-5xl text-yellow-500 mb-3 animate-pulse"></i>
+                        <p class="text-white font-black tracking-widest text-sm uppercase">DENGARKAN DIALOGNYA!</p>
                     </div>
                 </div>
-                <p id="video-status" class="text-gray-400 text-xs mt-4 text-center animate-pulse hidden">Memutar cuplikan... Tunggu sampai berhenti.</p>
             </div>
 
             <div id="quiz-stage" class="w-full hidden flex-col items-center mt-2 fade-in">
@@ -75,138 +75,79 @@
         </div>
     </div>
 
+    <script src="movies.js"></script>
+
     <script>
-        // 1. DATABASE FILM LANGSUNG DITANAM DI SINI (ANTI GAGAL LOAD)
-        const movieBank = [
-            {
-                videoId: "vmF0iZVGhfc", // AADC
-                startSeconds: 83, endSeconds: 88,         
-                title: "Ada Apa Dengan Cinta?", titleOptions: ["Ada Apa Dengan Cinta?", "Petualangan Sherina", "Eiffel I'm in Love", "Gie"],
-                actor: "Dian Sastrowardoyo", actorOptions: ["Dian Sastrowardoyo", "Nirina Zubir", "Luna Maya", "Shandy Aulia"],
-                year: "2002", yearOptions: ["2000", "2002", "2004", "2006"]
-            },
-            {
-                videoId: "RqG20t70PP4", // Warkop DKI Reborn
-                startSeconds: 52, endSeconds: 57,         
-                title: "Warkop DKI", titleOptions: ["Warkop DKI", "Comic 8", "My Stupid Boss", "Cek Toko Sebelah"],
-                actor: "Vino G. Bastian / Abimana", actorOptions: ["Vino G. Bastian / Abimana", "Reza Rahadian", "Raditya Dika", "Ernest Prakasa"],
-                year: "2016", yearOptions: ["2014", "2016", "2018", "2020"]
-            }
-        ];
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
         let player;
-        let isPlayerReady = false;
-        let sessionMovies = [...movieBank]; 
+        let sessionMovies = [];
         let currentIndex = 0;
         let currentStage = 1; 
         let score = 0;
         let timeLeft = 15; 
         let timerInterval;
         let isAnswering = false;
+        let isClipPlaying = false; // Kunci agar tidak bentrok
 
-        // 2. LOAD YOUTUBE API
-        var tag = document.createElement('script');
-        tag.src = "https://www.youtube.com/iframe_api";
-        var firstScriptTag = document.getElementsByTagName('script')[0];
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-        // 3. INISIALISASI MESIN YOUTUBE
+        // 1. SETUP YOUTUBE
         window.onYouTubeIframeAPIReady = function() {
+            if (typeof movieBank === 'undefined' || movieBank.length === 0) {
+                alert("Data Film kosong! Cek file movies.js"); return;
+            }
+            sessionMovies = [...movieBank];
+            document.getElementById('total-q').innerText = sessionMovies.length;
+            
             const firstMovie = sessionMovies[0];
             
             player = new YT.Player('yt-player', {
                 height: '100%', width: '100%',
                 videoId: firstMovie.videoId, 
                 playerVars: { 
-                    'controls': 0, 'disablekb': 1, 'fs': 0, 'rel': 0, 
+                    'controls': 1, // Kita nyalakan controls agar player bisa ngeklik play
+                    'disablekb': 1, 'fs': 0, 'rel': 0, 
                     'modestbranding': 1, 'playsinline': 1,
-                    'start': firstMovie.startSeconds,
-                    'end': firstMovie.endSeconds
+                    'start': firstMovie.startSeconds
                 },
                 events: { 
-                    'onReady': function(event) {
-                        isPlayerReady = true;
-                        showPlayButton();
-                    }, 
-                    'onStateChange': onPlayerStateChange,
-                    'onError': function(event) {
-                        alert("Video ini diblokir. Lanjut ke film berikutnya!");
-                        nextMovie();
-                    } 
+                    'onStateChange': onPlayerStateChange
                 }
             });
         };
 
-        // FAILSAFE: Kalau YouTube nyangkut lebih dari 4 detik, paksa muncul tombolnya!
-        setTimeout(() => {
-            if (!isPlayerReady) {
-                document.getElementById('play-icon').className = "fa-solid fa-triangle-exclamation text-5xl text-red-500 mb-2";
-                document.getElementById('play-text').innerText = "PAKSA PUTAR (KONEKSI LAMBAT)";
-                document.getElementById('play-overlay').classList.add('ready');
-                isPlayerReady = true; // Paksa anggap siap
-            }
-        }, 4000);
-
-        function showPlayButton() {
-            document.getElementById('q-number').innerText = currentIndex + 1;
-            const overlay = document.getElementById('play-overlay');
-            overlay.classList.add('ready');
-            document.getElementById('play-icon').className = "fa-solid fa-circle-play text-6xl text-yellow-500 hover:text-yellow-400 transition transform hover:scale-110 mb-2 shadow-black drop-shadow-lg animate-pulse";
-            document.getElementById('play-text').innerText = "KLIK UNTUK MEMUTAR";
-            document.getElementById('play-text').classList.add('text-yellow-500');
-        }
-
+        // 2. REAKSI SAAT YOUTUBE MULA DIPUTAR (THE MAGIC HAPPENS HERE)
         function onPlayerStateChange(event) {
-            if (event.data === YT.PlayerState.ENDED || event.data === YT.PlayerState.PAUSED) {
-                const movie = sessionMovies[currentIndex];
-                // Cek apakah video sudah masuk ke detik akhir yang ditentukan
-                if (player.getCurrentTime() >= movie.endSeconds - 1.5) {
-                    document.getElementById('video-status').classList.add('hidden');
-                    document.getElementById('video-stage').classList.add('hidden');
-                    startQuizStage(1); 
-                }
-            }
-        }
+            // Jika statusnya PLAYING (1) dan clip belum jalan
+            if (event.data === YT.PlayerState.PLAYING && !isClipPlaying) {
+                isClipPlaying = true; // Kunci
+                
+                // REAKSI 1: MUNCULKAN TOPENG GELAP!
+                document.getElementById('video-mask').classList.add('active');
+                
+                // Ganti teks instruksi
+                const instBox = document.getElementById('instruction-box');
+                instBox.classList.replace('bg-yellow-500/10', 'bg-red-500/20');
+                instBox.classList.replace('border-yellow-500', 'border-red-500');
+                document.getElementById('instruction-text').innerHTML = '<i class="fa-solid fa-microphone-lines text-red-500 mr-2"></i> MEREKAM ADEGAN...';
+                document.getElementById('instruction-sub').innerText = "Fokus pada suaranya!";
 
-        function playVideo() {
-            if(!isPlayerReady) return;
-            document.getElementById('play-overlay').classList.add('hidden');
-            document.getElementById('video-status').classList.remove('hidden');
-            
-            const movie = sessionMovies[currentIndex];
-            const duration = (movie.endSeconds - movie.startSeconds) * 1000;
-            
-            player.playVideo();
-            
-            // TIMER DARURAT: Memastikan video berhenti meskipun API YouTube macet
-            setTimeout(() => {
-                if(document.getElementById('video-stage').classList.contains('hidden') === false) {
+                // REAKSI 2: HITUNG DURASI
+                const movie = sessionMovies[currentIndex];
+                const durationMs = (movie.endSeconds - movie.startSeconds) * 1000;
+
+                // REAKSI 3: SETELAH DURASI HABIS, STOP VIDEO & MULAI KUIS
+                setTimeout(() => {
                     player.pauseVideo();
-                    document.getElementById('video-status').classList.add('hidden');
                     document.getElementById('video-stage').classList.add('hidden');
                     startQuizStage(1);
-                }
-            }, duration + 3000); // Durasi asli + Toleransi 3 detik
+                }, durationMs);
+            }
         }
 
-        function loadMovieVideo() {
-            if(!isPlayerReady) return;
-            const movie = sessionMovies[currentIndex];
-            
-            document.getElementById('quiz-stage').classList.add('hidden');
-            document.getElementById('video-stage').classList.remove('hidden');
-            document.getElementById('timer-display').innerText = "--";
-            document.getElementById('play-overlay').classList.remove('hidden');
-
-            showPlayButton();
-
-            player.cueVideoById({
-                videoId: movie.videoId,
-                startSeconds: movie.startSeconds,
-                endSeconds: movie.endSeconds
-            });
-        }
-
+        // 3. MULAI BABAK KUIS
         function startQuizStage(stageNum) {
             isAnswering = false;
             currentStage = stageNum;
@@ -315,10 +256,31 @@
             setTimeout(() => { container.classList.add('hidden'); content.style.transform = 'scale(1.5)'; }, 1400);
         }
 
+        // 4. SIAPKAN FILM BERIKUTNYA
         function nextMovie() {
             currentIndex++;
             if (currentIndex < sessionMovies.length) {
-                loadMovieVideo();
+                const movie = sessionMovies[currentIndex];
+                document.getElementById('q-number').innerText = currentIndex + 1;
+                
+                // Buka topeng & kembalikan instruksi ke awal
+                document.getElementById('video-mask').classList.remove('active');
+                const instBox = document.getElementById('instruction-box');
+                instBox.classList.replace('bg-red-500/20', 'bg-yellow-500/10');
+                instBox.classList.replace('border-red-500', 'border-yellow-500');
+                document.getElementById('instruction-text').innerHTML = '<i class="fa-brands fa-youtube text-red-500 mr-1"></i> Klik Tombol Play YouTube di bawah!';
+                document.getElementById('instruction-sub').innerText = "Video akan otomatis disensor saat diputar.";
+
+                document.getElementById('quiz-stage').classList.add('hidden');
+                document.getElementById('video-stage').classList.remove('hidden');
+                
+                // Reset Kunci Play & Siapkan YouTube ke menit yang baru
+                isClipPlaying = false;
+                player.cueVideoById({
+                    videoId: movie.videoId,
+                    startSeconds: movie.startSeconds
+                });
+
             } else {
                 document.getElementById('quiz-stage').classList.add('hidden');
                 document.getElementById('video-stage').classList.add('hidden');
