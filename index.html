@@ -19,14 +19,14 @@
 
         .video-container { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 1rem; overflow: hidden; border: 3px solid #333; background-color: #111;}
         
-        /* TOPENG BLUR - AWALNYA SEMBUNYI */
+        /* TOPENG BLUR - AWALNYA SEMBUNYI DAN TIDAK MENGHALANGI KLIK (pointer-events: none) */
         .video-mask { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); 
             z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center;
             opacity: 0; pointer-events: none; transition: opacity 0.5s ease;
         }
-        /* SAAT ACTIVE, TOPENG MUNCUL */
+        /* SAAT ACTIVE, TOPENG MUNCUL DAN MENGUNCI VIDEO AGAR TIDAK BISA DI-PAUSE */
         .video-mask.active {
             opacity: 1; pointer-events: auto;
         }
@@ -50,14 +50,13 @@
                     <h2 id="instruction-text" class="text-yellow-500 font-black text-sm tracking-widest uppercase">
                         <i class="fa-brands fa-youtube text-red-500 mr-1"></i> Klik Tombol Play YouTube di bawah!
                     </h2>
-                    <p id="instruction-sub" class="text-gray-400 text-xs mt-1">Video akan disensor saat mulai berbunyi.</p>
+                    <p id="instruction-sub" class="text-gray-400 text-xs mt-1">Video akan otomatis disensor saat mulai berbunyi.</p>
                 </div>
                 
                 <div class="video-container shadow-[0_0_30px_rgba(234,179,8,0.3)]">
                     
                     <iframe id="yt-player" width="100%" height="100%" 
-                        src="https://www.youtube.com/embed/?enablejsapi=1&controls=1&rel=0&playsinline=1" 
-                        title="YouTube video player" frameborder="0" 
+                        frameborder="0" 
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                         style="position: absolute; top: 0; left: 0; z-index: 1;">
                     </iframe>
@@ -84,8 +83,6 @@
 
     <script src="movies.js"></script>
 
-    <script src="https://www.youtube.com/iframe_api"></script>
-
     <script>
         let player;
         let sessionMovies = [];
@@ -97,38 +94,43 @@
         let isAnswering = false;
         let isClipPlaying = false; 
 
-        // 1. SETUP YOUTUBE
-        function onYouTubeIframeAPIReady() {
-            if (typeof movieBank === 'undefined' || movieBank.length === 0) {
-                alert("Data Film kosong! Cek file movies.js"); return;
-            }
+        // 1. PASTIKAN DATA FILM ADA, LALU SUNTIKKAN ID-NYA KE IFRAME
+        if (typeof movieBank !== 'undefined' && movieBank.length > 0) {
             sessionMovies = [...movieBank];
             document.getElementById('total-q').innerText = sessionMovies.length;
+            const firstMovie = sessionMovies[0];
             
-            // Hook ke iframe yang sudah ada di HTML
+            // JURUS ANTI-GAGAL: Beri link asli sebelum YouTube API jalan
+            const iframe = document.getElementById('yt-player');
+            iframe.src = `https://www.youtube.com/embed/${firstMovie.videoId}?enablejsapi=1&controls=1&rel=0&playsinline=1&start=${firstMovie.startSeconds}`;
+        } else {
+            alert("File movies.js tidak terbaca atau kosong!");
+        }
+
+        // 2. PANGGIL YOUTUBE API
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+        // 3. API MENYAMBUNG KE IFRAME YANG SUDAH ADA
+        function onYouTubeIframeAPIReady() {
             player = new YT.Player('yt-player', {
                 events: { 
-                    'onReady': onPlayerReady,
+                    'onReady': function() {
+                        console.log("Player Siap!"); // Mengunci agar siap menerima event klik
+                    },
                     'onStateChange': onPlayerStateChange
                 }
             });
         }
 
-        // 2. KETIKA PLAYER SIAP, MASUKKAN FILM PERTAMA
-        function onPlayerReady(event) {
-            const firstMovie = sessionMovies[currentIndex];
-            player.cueVideoById({
-                videoId: firstMovie.videoId,
-                startSeconds: firstMovie.startSeconds
-            });
-        }
-
-        // 3. REAKSI SAAT YOUTUBE MULA DIPUTAR
+        // 4. REAKSI KETIKA PEMAIN KLIK PLAY (1 = PLAYING)
         function onPlayerStateChange(event) {
             if (event.data === YT.PlayerState.PLAYING && !isClipPlaying) {
                 isClipPlaying = true; 
                 
-                // MUNCULKAN TOPENG GELAP!
+                // REAKSI 1: MUNCULKAN TOPENG GELAP!
                 document.getElementById('video-mask').classList.add('active');
                 
                 const instBox = document.getElementById('instruction-box');
@@ -137,11 +139,11 @@
                 document.getElementById('instruction-text').innerHTML = '<i class="fa-solid fa-microphone-lines text-red-500 mr-2"></i> MEREKAM ADEGAN...';
                 document.getElementById('instruction-sub').innerText = "Fokus pada suaranya!";
 
-                // HITUNG DURASI
+                // REAKSI 2: HITUNG DURASI
                 const movie = sessionMovies[currentIndex];
                 const durationMs = (movie.endSeconds - movie.startSeconds) * 1000;
 
-                // SETELAH DURASI HABIS, STOP VIDEO & MULAI KUIS
+                // REAKSI 3: SETELAH DURASI HABIS, STOP VIDEO & MULAI KUIS
                 setTimeout(() => {
                     player.pauseVideo();
                     document.getElementById('video-stage').classList.add('hidden');
@@ -150,7 +152,7 @@
             }
         }
 
-        // 4. MULAI BABAK KUIS
+        // 5. MULAI BABAK KUIS
         function startQuizStage(stageNum) {
             isAnswering = false;
             currentStage = stageNum;
@@ -259,7 +261,7 @@
             setTimeout(() => { container.classList.add('hidden'); content.style.transform = 'scale(1.5)'; }, 1400);
         }
 
-        // 5. SIAPKAN FILM BERIKUTNYA
+        // 6. SIAPKAN FILM BERIKUTNYA
         function nextMovie() {
             currentIndex++;
             if (currentIndex < sessionMovies.length) {
@@ -272,12 +274,12 @@
                 instBox.classList.replace('bg-red-500/20', 'bg-yellow-500/10');
                 instBox.classList.replace('border-red-500', 'border-yellow-500');
                 document.getElementById('instruction-text').innerHTML = '<i class="fa-brands fa-youtube text-red-500 mr-1"></i> Klik Tombol Play YouTube di bawah!';
-                document.getElementById('instruction-sub').innerText = "Video akan disensor saat mulai berbunyi.";
+                document.getElementById('instruction-sub').innerText = "Video akan otomatis disensor saat mulai berbunyi.";
 
                 document.getElementById('quiz-stage').classList.add('hidden');
                 document.getElementById('video-stage').classList.remove('hidden');
                 
-                // Reset Kunci Play & Siapkan YouTube ke film baru
+                // Reset Kunci & Panggil Film Baru
                 isClipPlaying = false;
                 player.cueVideoById({
                     videoId: movie.videoId,
