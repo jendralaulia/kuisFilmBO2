@@ -78,7 +78,7 @@
     <script src="movies.js"></script>
 
     <script>
-        // 1. CARA BENAR MEMUAT API YOUTUBE (DINAMIS & ANTI BLOKIR)
+        // 1. CARA BENAR MEMUAT API YOUTUBE
         var tag = document.createElement('script');
         tag.src = "https://www.youtube.com/iframe_api";
         var firstScriptTag = document.getElementsByTagName('script')[0];
@@ -86,7 +86,7 @@
 
         let player;
         let isPlayerReady = false;
-        let sessionMovies = [...movieBank]; 
+        let sessionMovies = typeof movieBank !== 'undefined' ? [...movieBank] : []; 
         let currentIndex = 0;
         let currentStage = 1; 
         let score = 0;
@@ -94,38 +94,49 @@
         let timerInterval;
         let isAnswering = false;
 
+        // FUNGSI INI OTOMATIS DIPANGGIL OLEH YOUTUBE KETIKA SCRIPT-NYA SELESAI DI-LOAD
         function onYouTubeIframeAPIReady() {
+            if (sessionMovies.length === 0) {
+                alert("Data Film kosong! Cek file movies.js");
+                return;
+            }
+
+            const firstMovie = sessionMovies[currentIndex];
+            
+            // PERBAIKAN FATAL: Langsung berikan videoId sejak awal pembuatan player
             player = new YT.Player('yt-player', {
                 height: '100%', width: '100%',
+                videoId: firstMovie.videoId, 
                 playerVars: { 
                     'controls': 0, 'disablekb': 1, 'fs': 0, 'rel': 0, 
-                    'modestbranding': 1, 'playsinline': 1 // playsinline SANGAT PENTING UTK HP!
+                    'modestbranding': 1, 'playsinline': 1,
+                    'start': firstMovie.startSeconds,
+                    'end': firstMovie.endSeconds
                 },
                 events: { 
                     'onReady': onPlayerReady, 
                     'onStateChange': onPlayerStateChange,
-                    'onError': onPlayerError // SISTEM ALARM ERROR
+                    'onError': onPlayerError 
                 }
             });
         }
 
+        // KETIKA PLAYER YOUTUBE SUDAH SIAP
         function onPlayerReady(event) {
             isPlayerReady = true;
-            loadMovieVideo(); 
+            showPlayButton(); // Langsung ubah spinner jadi tombol play raksasa
         }
 
-        // ALARM JIKA VIDEO DIBLOKIR OLEH STUDIO FILM / YOUTUBE
         function onPlayerError(event) {
             console.error("YouTube Error Code:", event.data);
-            alert("Waduh! Cuplikan film ini dikunci/diblokir oleh Studio Filmnya. Kita loncat ke film berikutnya ya!");
+            alert("Waduh! Cuplikan film ini dikunci/diblokir oleh YouTube. Kita loncat ke film berikutnya ya!");
             nextMovie();
         }
 
         function onPlayerStateChange(event) {
             if (event.data === YT.PlayerState.ENDED || event.data === YT.PlayerState.PAUSED) {
-                // Pastikan video berhenti di waktu yang ditentukan
                 const movie = sessionMovies[currentIndex];
-                if (player.getCurrentTime() >= movie.endSeconds - 1) {
+                if (player.getCurrentTime() >= movie.endSeconds - 1.5) {
                     document.getElementById('video-status').classList.add('hidden');
                     document.getElementById('video-stage').classList.add('hidden');
                     startQuizStage(1); 
@@ -133,22 +144,26 @@
             }
         }
 
-        function loadMovieVideo() {
-            if(!isPlayerReady) return;
-            const movie = sessionMovies[currentIndex];
+        function showPlayButton() {
             document.getElementById('q-number').innerText = currentIndex + 1;
-            
-            document.getElementById('quiz-stage').classList.add('hidden');
-            document.getElementById('video-stage').classList.remove('hidden');
-            document.getElementById('timer-display').innerText = "--";
-
-            // Tampilan Tombol Siap
             const overlay = document.getElementById('play-overlay');
             overlay.classList.remove('hidden');
             overlay.classList.add('ready');
             document.getElementById('play-icon').className = "fa-solid fa-circle-play text-6xl text-yellow-500 hover:text-yellow-400 transition transform hover:scale-110 mb-2 shadow-black drop-shadow-lg";
             document.getElementById('play-text').innerText = "KLIK UNTUK MEMUTAR";
+        }
 
+        function loadMovieVideo() {
+            if(!isPlayerReady) return;
+            const movie = sessionMovies[currentIndex];
+            
+            document.getElementById('quiz-stage').classList.add('hidden');
+            document.getElementById('video-stage').classList.remove('hidden');
+            document.getElementById('timer-display').innerText = "--";
+
+            showPlayButton();
+
+            // Suruh YouTube ganti kaset ke film berikutnya
             player.cueVideoById({
                 videoId: movie.videoId,
                 startSeconds: movie.startSeconds,
@@ -161,13 +176,12 @@
             document.getElementById('play-overlay').classList.add('hidden');
             document.getElementById('video-status').classList.remove('hidden');
             
-            // Paksa berhenti otomatis jika YT.PlayerState.ENDED gagal terbaca
             const movie = sessionMovies[currentIndex];
             const duration = (movie.endSeconds - movie.startSeconds) * 1000;
             
             player.playVideo();
             
-            // Failsafe Timer: Kalau video nyangkut, paksa lanjut kuis
+            // Failsafe Timer Anti-Nyangkut
             setTimeout(() => {
                 if(document.getElementById('video-stage').classList.contains('hidden') === false) {
                     player.pauseVideo();
@@ -175,7 +189,7 @@
                     document.getElementById('video-stage').classList.add('hidden');
                     startQuizStage(1);
                 }
-            }, duration + 2000); // Toleransi loading 2 detik
+            }, duration + 3000); 
         }
 
         function startQuizStage(stageNum) {
@@ -294,7 +308,6 @@
                 document.getElementById('quiz-stage').classList.add('hidden');
                 document.getElementById('video-stage').classList.add('hidden');
                 alert("GAME SELESAI! Skor Akhir Anda: " + score.toLocaleString());
-                // Nanti ditambahkan halaman akhir (Result Screen)
             }
         }
     </script>
