@@ -1,10 +1,9 @@
 const movieBank = [
     {
-        // ASLI: Trailer AADC (Ada Apa Dengan Cinta)
-        // Link asli: https://www.youtube.com/watch?v=vmF0iZVGhfc
+        // ASLI: Trailer AADC
         videoId: "vmF0iZVGhfc", 
-        startSeconds: 83,       // Mulai di detik ke 1 menit 23 detik (Cinta ngomong)
-        endSeconds: 88,         // Berhenti di detik ke 1 menit 28 detik
+        startSeconds: 83,       // Mulai saat Cinta ngomong
+        endSeconds: 88,         // 5 Detik durasi
         
         title: "Ada Apa Dengan Cinta?",
         titleOptions: ["Ada Apa Dengan Cinta?", "Petualangan Sherina", "Eiffel I'm in Love", "Gie"],
@@ -16,11 +15,10 @@ const movieBank = [
         yearOptions: ["2000", "2002", "2004", "2006"]
     },
     {
-        // ASLI: Trailer Warkop DKI Reborn Jangkrik Boss 
-        // Link Asli: https://www.youtube.com/watch?v=RqG20t70PP4
+        // ASLI: Warkop DKI Reborn (Jangkrik Boss)
         videoId: "RqG20t70PP4", 
-        startSeconds: 52,       // Mulai di detik ke 52
-        endSeconds: 57,         // Berhenti di detik ke 57
+        startSeconds: 52,       // Mulai saat ngomong Jangkrik
+        endSeconds: 57,         
         
         title: "Warkop DKI",
         titleOptions: ["Warkop DKI", "Comic 8", "My Stupid Boss", "Cek Toko Sebelah"],
