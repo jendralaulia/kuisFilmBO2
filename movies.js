@@ -1,35 +1,34 @@
 const movieBank = [
     {
-        // Adegan AADC (Pecahkan saja gelasnya)
-        videoId: "E3Tj5M04nKw", // Didapat dari link youtube.com/watch?v=E3Tj5M04nKw
-        startSeconds: 61,       // Mulai di detik 1:01 (61 detik)
-        endSeconds: 67,         // Berhenti di detik 1:07 (67 detik)
+        // ASLI: Trailer AADC (Ada Apa Dengan Cinta)
+        // Link asli: https://www.youtube.com/watch?v=vmF0iZVGhfc
+        videoId: "vmF0iZVGhfc", 
+        startSeconds: 83,       // Mulai di detik ke 1 menit 23 detik (Cinta ngomong)
+        endSeconds: 88,         // Berhenti di detik ke 1 menit 28 detik
         
-        // Babak 1: Judul
         title: "Ada Apa Dengan Cinta?",
         titleOptions: ["Ada Apa Dengan Cinta?", "Petualangan Sherina", "Eiffel I'm in Love", "Gie"],
         
-        // Babak 2: Aktor (Bonus)
         actor: "Dian Sastrowardoyo",
         actorOptions: ["Dian Sastrowardoyo", "Nirina Zubir", "Luna Maya", "Shandy Aulia"],
         
-        // Babak 3: Tahun (Jackpot)
         year: "2002",
         yearOptions: ["2000", "2002", "2004", "2006"]
     },
     {
-        // Adegan Warkop DKI (Jangkrik Boss) - CHIPS
-        videoId: "WlVvLpIokM0", 
-        startSeconds: 52,       
-        endSeconds: 56,         
+        // ASLI: Trailer Warkop DKI Reborn Jangkrik Boss 
+        // Link Asli: https://www.youtube.com/watch?v=RqG20t70PP4
+        videoId: "RqG20t70PP4", 
+        startSeconds: 52,       // Mulai di detik ke 52
+        endSeconds: 57,         // Berhenti di detik ke 57
         
-        title: "CHIPS (Warkop DKI)",
-        titleOptions: ["CHIPS (Warkop DKI)", "Dongkrak Antik", "Gengsi Dong", "Maju Kena Mundur Kena"],
+        title: "Warkop DKI",
+        titleOptions: ["Warkop DKI", "Comic 8", "My Stupid Boss", "Cek Toko Sebelah"],
         
-        actor: "Kasino",
-        actorOptions: ["Kasino", "Dono", "Indro", "Pancaran Sinar Petromaks"],
+        actor: "Vino G. Bastian / Abimana",
+        actorOptions: ["Vino G. Bastian / Abimana", "Reza Rahadian", "Raditya Dika", "Ernest Prakasa"],
         
-        year: "1982",
-        yearOptions: ["1979", "1982", "1985", "1988"]
+        year: "2016",
+        yearOptions: ["2014", "2016", "2018", "2020"]
     }
 ];
