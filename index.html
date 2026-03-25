@@ -17,22 +17,20 @@
         .option-btn { transition: all 0.2s; background-color: #111; border: 1px solid #444; color: #eab308; }
         .option-btn:active:not(:disabled) { transform: scale(0.98); }
 
-        /* MASKING YOUTUBE 80% BLUR & GELAP */
-        .video-container { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 1rem; overflow: hidden; border: 3px solid #333; }
+        .video-container { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 1rem; overflow: hidden; border: 3px solid #333; background-color: #111;}
         .video-mask { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0, 0, 0, 0.85); /* Gelap 85% */
-            backdrop-filter: blur(8px); /* Efek Blur */
-            z-index: 10; pointer-events: none; /* Agar klik tembus ke YouTube kalau butuh di-unmute */
+            background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); 
+            z-index: 10; pointer-events: none; 
             display: flex; align-items: center; justify-content: center;
         }
         
-        /* Tombol Play Raksasa di atas Mask */
         .play-overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            background: rgba(0,0,0,0.7); cursor: pointer;
+            background: rgba(0,0,0,0.8); cursor: pointer; transition: background 0.3s;
         }
+        .play-overlay.ready:hover { background: rgba(0,0,0,0.6); }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
@@ -58,11 +56,11 @@
                     </div>
 
                     <div class="play-overlay" id="play-overlay" onclick="playVideo()">
-                        <i class="fa-solid fa-circle-play text-6xl text-yellow-500 hover:text-yellow-400 transition transform hover:scale-110 mb-2 shadow-black drop-shadow-lg"></i>
-                        <p class="text-white font-bold tracking-widest">KLIK UNTUK MEMUTAR</p>
+                        <i id="play-icon" class="fa-solid fa-spinner fa-spin text-5xl text-gray-400 mb-2"></i>
+                        <p id="play-text" class="text-gray-400 font-bold tracking-widest text-sm uppercase">MEMUAT BIOSKOP...</p>
                     </div>
                 </div>
-                <p id="video-status" class="text-gray-400 text-xs mt-4 text-center animate-pulse hidden">Memutar cuplikan... Tunggu sampai selesai.</p>
+                <p id="video-status" class="text-gray-400 text-xs mt-4 text-center animate-pulse hidden">Memutar cuplikan... Tunggu sampai berhenti.</p>
             </div>
 
             <div id="quiz-stage" class="w-full hidden flex-col items-center mt-2 fade-in">
@@ -79,56 +77,78 @@
 
     <script src="movies.js"></script>
 
-    <script src="https://www.youtube.com/iframe_api"></script>
-
     <script>
+        // 1. CARA BENAR MEMUAT API YOUTUBE (DINAMIS & ANTI BLOKIR)
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
         let player;
         let isPlayerReady = false;
-        let sessionMovies = [...movieBank]; // Nanti bisa diacak
+        let sessionMovies = [...movieBank]; 
         let currentIndex = 0;
-        let currentStage = 1; // 1=Judul, 2=Aktor, 3=Tahun
+        let currentStage = 1; 
         let score = 0;
-        let timeLeft = 15; // 15 detik per babak biar tegang
+        let timeLeft = 15; 
         let timerInterval;
         let isAnswering = false;
 
-        // 1. FUNGSI WAJIB YOUTUBE: Dijalankan otomatis saat API YouTube selesai dimuat
         function onYouTubeIframeAPIReady() {
             player = new YT.Player('yt-player', {
                 height: '100%', width: '100%',
-                playerVars: { 'controls': 0, 'disablekb': 1, 'fs': 0, 'rel': 0, 'modestbranding': 1 },
-                events: { 'onReady': onPlayerReady, 'onStateChange': onPlayerStateChange }
+                playerVars: { 
+                    'controls': 0, 'disablekb': 1, 'fs': 0, 'rel': 0, 
+                    'modestbranding': 1, 'playsinline': 1 // playsinline SANGAT PENTING UTK HP!
+                },
+                events: { 
+                    'onReady': onPlayerReady, 
+                    'onStateChange': onPlayerStateChange,
+                    'onError': onPlayerError // SISTEM ALARM ERROR
+                }
             });
         }
 
         function onPlayerReady(event) {
             isPlayerReady = true;
-            loadMovieVideo(); // Muat video film pertama
+            loadMovieVideo(); 
         }
 
-        // 2. FUNGSI DETEKSI VIDEO BERHENTI
+        // ALARM JIKA VIDEO DIBLOKIR OLEH STUDIO FILM / YOUTUBE
+        function onPlayerError(event) {
+            console.error("YouTube Error Code:", event.data);
+            alert("Waduh! Cuplikan film ini dikunci/diblokir oleh Studio Filmnya. Kita loncat ke film berikutnya ya!");
+            nextMovie();
+        }
+
         function onPlayerStateChange(event) {
-            // Jika video sudah selesai (berhenti di detik endSeconds)
-            if (event.data === YT.PlayerState.ENDED) {
-                document.getElementById('video-status').classList.add('hidden');
-                document.getElementById('video-stage').classList.add('hidden');
-                startQuizStage(1); // Lanjut ke Babak 1 (Tebak Judul)
+            if (event.data === YT.PlayerState.ENDED || event.data === YT.PlayerState.PAUSED) {
+                // Pastikan video berhenti di waktu yang ditentukan
+                const movie = sessionMovies[currentIndex];
+                if (player.getCurrentTime() >= movie.endSeconds - 1) {
+                    document.getElementById('video-status').classList.add('hidden');
+                    document.getElementById('video-stage').classList.add('hidden');
+                    startQuizStage(1); 
+                }
             }
         }
 
-        // 3. MUAT VIDEO
         function loadMovieVideo() {
             if(!isPlayerReady) return;
             const movie = sessionMovies[currentIndex];
             document.getElementById('q-number').innerText = currentIndex + 1;
             
-            // Reset Tampilan ke Video Player
             document.getElementById('quiz-stage').classList.add('hidden');
             document.getElementById('video-stage').classList.remove('hidden');
-            document.getElementById('play-overlay').classList.remove('hidden');
             document.getElementById('timer-display').innerText = "--";
 
-            // Suruh YouTube antre videonya dari detik sekian sampai detik sekian
+            // Tampilan Tombol Siap
+            const overlay = document.getElementById('play-overlay');
+            overlay.classList.remove('hidden');
+            overlay.classList.add('ready');
+            document.getElementById('play-icon').className = "fa-solid fa-circle-play text-6xl text-yellow-500 hover:text-yellow-400 transition transform hover:scale-110 mb-2 shadow-black drop-shadow-lg";
+            document.getElementById('play-text').innerText = "KLIK UNTUK MEMUTAR";
+
             player.cueVideoById({
                 videoId: movie.videoId,
                 startSeconds: movie.startSeconds,
@@ -136,14 +156,28 @@
             });
         }
 
-        // 4. TOMBOL PLAY DITEKAN PEMAIN
         function playVideo() {
+            if(!isPlayerReady) return;
             document.getElementById('play-overlay').classList.add('hidden');
             document.getElementById('video-status').classList.remove('hidden');
-            player.playVideo(); // Putar videonya
+            
+            // Paksa berhenti otomatis jika YT.PlayerState.ENDED gagal terbaca
+            const movie = sessionMovies[currentIndex];
+            const duration = (movie.endSeconds - movie.startSeconds) * 1000;
+            
+            player.playVideo();
+            
+            // Failsafe Timer: Kalau video nyangkut, paksa lanjut kuis
+            setTimeout(() => {
+                if(document.getElementById('video-stage').classList.contains('hidden') === false) {
+                    player.pauseVideo();
+                    document.getElementById('video-status').classList.add('hidden');
+                    document.getElementById('video-stage').classList.add('hidden');
+                    startQuizStage(1);
+                }
+            }, duration + 2000); // Toleransi loading 2 detik
         }
 
-        // 5. MEMULAI BABAK KUIS (Judul/Aktor/Tahun)
         function startQuizStage(stageNum) {
             isAnswering = false;
             currentStage = stageNum;
@@ -176,7 +210,6 @@
                 correctAnswer = movie.year;
             }
 
-            // Buat Tombol Jawaban
             options.forEach(opt => {
                 const btn = document.createElement('button');
                 btn.className = "option-btn w-full text-center p-4 rounded-xl font-bold text-sm tracking-wide";
@@ -185,7 +218,6 @@
                 container.appendChild(btn);
             });
 
-            // Mulai Timer 15 Detik
             timeLeft = 15;
             document.getElementById('timer-display').innerText = timeLeft;
             clearInterval(timerInterval);
@@ -198,7 +230,7 @@
             if (timeLeft <= 0) {
                 clearInterval(timerInterval);
                 showFeedback(false, "WAKTU HABIS!");
-                setTimeout(nextMovie, 1500); // Waktu habis = gagal, langsung next film
+                setTimeout(nextMovie, 1500); 
             }
         }
 
@@ -218,29 +250,28 @@
             if (isCorrect) {
                 selectedBtn.style.backgroundColor = '#15803d'; selectedBtn.style.color = '#fff';
                 
-                // Hitung Poin
                 let points = 0;
                 if(currentStage === 1) points = 1000 + (timeLeft * 20);
-                if(currentStage === 2) points = 500 + (timeLeft * 20); // Bonus
-                if(currentStage === 3) points = 1500 + (timeLeft * 20); // Jackpot!
+                if(currentStage === 2) points = 500 + (timeLeft * 20); 
+                if(currentStage === 3) points = 1500 + (timeLeft * 20); 
                 
                 score += points;
                 document.getElementById('score-display').innerText = score.toLocaleString();
 
                 if (currentStage === 1) {
-                    showFeedback(true, `BENAR! +${points}<br><span class="text-sm">Lanjut Babak Aktor!</span>`);
+                    showFeedback(true, `BENAR! +${points}<br><span class="text-sm text-green-200">Lanjut Babak Aktor!</span>`);
                     setTimeout(() => startQuizStage(2), 1500);
                 } else if (currentStage === 2) {
-                    showFeedback(true, `AKTOR BENAR! +${points}<br><span class="text-sm">Lanjut Jackpot Tahun!</span>`);
+                    showFeedback(true, `AKTOR BENAR! +${points}<br><span class="text-sm text-green-200">Lanjut Jackpot Tahun!</span>`);
                     setTimeout(() => startQuizStage(3), 1500);
                 } else {
                     showFeedback(true, `JACKPOT! TAHUN BENAR! +${points}`);
-                    setTimeout(nextMovie, 1500); // Selesai 3 babak, ganti film
+                    setTimeout(nextMovie, 1500); 
                 }
             } else {
                 selectedBtn.style.backgroundColor = '#7f1d1d'; selectedBtn.style.color = '#f87171';
-                showFeedback(false, "SALAH!<br><span class="text-sm">Film Gagal Ditebak</span>");
-                setTimeout(nextMovie, 1500); // Salah di babak manapun = langsung ganti film
+                showFeedback(false, "SALAH!<br><span class="text-sm text-red-200">Film Gagal Ditebak</span>");
+                setTimeout(nextMovie, 1500); 
             }
         }
 
@@ -249,10 +280,10 @@
             const content = document.getElementById('feedback-content');
             container.classList.remove('hidden');
             content.innerHTML = isCorrect 
-                ? `<div class="bg-green-900/80 p-5 rounded-3xl shadow-[0_0_30px_rgba(34,197,94,0.5)] border-2 border-green-500"><i class="fa-solid fa-check text-5xl text-green-400 mb-2"></i><div class="font-black text-xl text-green-400 uppercase tracking-widest leading-tight">${htmlText}</div></div>`
-                : `<div class="bg-red-900/80 p-5 rounded-3xl shadow-[0_0_30px_rgba(239,68,68,0.5)] border-2 border-red-500"><i class="fa-solid fa-xmark text-5xl text-red-400 mb-2"></i><div class="font-black text-xl text-red-400 uppercase tracking-widest leading-tight">${htmlText}</div></div>`;
+                ? `<div class="bg-green-900/90 p-6 rounded-3xl shadow-[0_0_30px_rgba(34,197,94,0.5)] border-2 border-green-500"><i class="fa-solid fa-check text-5xl text-green-400 mb-2"></i><div class="font-black text-xl text-green-400 uppercase tracking-widest leading-tight">${htmlText}</div></div>`
+                : `<div class="bg-red-900/90 p-6 rounded-3xl shadow-[0_0_30px_rgba(239,68,68,0.5)] border-2 border-red-500"><i class="fa-solid fa-xmark text-5xl text-red-400 mb-2"></i><div class="font-black text-xl text-red-400 uppercase tracking-widest leading-tight">${htmlText}</div></div>`;
             content.style.transform = 'scale(1)';
-            setTimeout(() => { container.classList.add('hidden'); content.style.transform = 'scale(1.5)'; }, 1300);
+            setTimeout(() => { container.classList.add('hidden'); content.style.transform = 'scale(1.5)'; }, 1400);
         }
 
         function nextMovie() {
@@ -260,8 +291,10 @@
             if (currentIndex < sessionMovies.length) {
                 loadMovieVideo();
             } else {
-                alert("GAME SELESAI! Skor Akhir Anda: " + score);
-                // Nanti bisa diarahkan ke halaman skor seperti game sebelumnya
+                document.getElementById('quiz-stage').classList.add('hidden');
+                document.getElementById('video-stage').classList.add('hidden');
+                alert("GAME SELESAI! Skor Akhir Anda: " + score.toLocaleString());
+                // Nanti ditambahkan halaman akhir (Result Screen)
             }
         }
     </script>
