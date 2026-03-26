@@ -16,25 +16,11 @@
         
         .option-btn { transition: all 0.2s; background-color: #111; border: 1px solid #444; color: #eab308; }
         .option-btn:active:not(:disabled) { transform: scale(0.98); }
-
-        .video-container { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: 1rem; overflow: hidden; border: 3px solid #333; background-color: #111;}
-        
-        /* TOPENG BLUR - AWALNYA SEMBUNYI DAN TIDAK MENGHALANGI KLIK (pointer-events: none) */
-        .video-mask { 
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); 
-            z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center;
-            opacity: 0; pointer-events: none; transition: opacity 0.5s ease;
-        }
-        /* SAAT ACTIVE, TOPENG MUNCUL DAN MENGUNCI VIDEO AGAR TIDAK BISA DI-PAUSE */
-        .video-mask.active {
-            opacity: 1; pointer-events: auto;
-        }
     </style>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
 
-    <div id="app-container" class="glass-panel w-full max-w-md rounded-3xl overflow-hidden fade-in relative flex flex-col h-[85vh]">
+    <div class="glass-panel w-full max-w-md rounded-3xl overflow-hidden fade-in relative flex flex-col h-[85vh]">
         
         <div class="bg-yellow-600/20 text-yellow-500 p-3 flex justify-between items-center border-b border-yellow-700/50">
             <div class="font-black text-sm"><i class="fa-solid fa-star"></i> <span id="score-display">0</span></div>
@@ -46,27 +32,22 @@
             
             <div id="video-stage" class="w-full flex flex-col items-center justify-center mt-2">
                 
-                <div id="instruction-box" class="bg-yellow-500/10 border border-yellow-500 p-3 rounded-xl mb-4 text-center w-full animate-pulse">
-                    <h2 id="instruction-text" class="text-yellow-500 font-black text-sm tracking-widest uppercase">
-                        <i class="fa-brands fa-youtube text-red-500 mr-1"></i> Klik Tombol Play YouTube di bawah!
+                <div id="instruction-box" class="bg-yellow-500/10 border border-yellow-500 p-3 rounded-xl mb-4 text-center w-full">
+                    <h2 id="instruction-text" class="text-yellow-500 font-black text-sm tracking-widest uppercase animate-pulse">
+                        <i class="fa-brands fa-youtube text-red-500 mr-1"></i> KLIK PLAY PADA VIDEO DI BAWAH!
                     </h2>
-                    <p id="instruction-sub" class="text-gray-400 text-xs mt-1">Video akan otomatis disensor saat mulai berbunyi.</p>
+                    <p class="text-gray-400 text-xs mt-1">Layar akan otomatis digelapkan saat dialog dimulai.</p>
                 </div>
                 
-                <div class="video-container shadow-[0_0_30px_rgba(234,179,8,0.3)]">
+                <div class="relative w-full aspect-video rounded-xl overflow-hidden border-2 border-gray-700 shadow-lg">
+                    <div id="yt-player" class="w-full h-full"></div>
                     
-                    <iframe id="yt-player" width="100%" height="100%" 
-                        frameborder="0" 
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                        style="position: absolute; top: 0; left: 0; z-index: 1;">
-                    </iframe>
-                    
-                    <div class="video-mask" id="video-mask">
+                    <div id="video-mask" class="absolute inset-0 bg-black/90 backdrop-blur-md z-10 flex-col items-center justify-center hidden">
                         <i class="fa-solid fa-ear-listen text-5xl text-yellow-500 mb-3 animate-pulse"></i>
                         <p class="text-white font-black tracking-widest text-sm uppercase">DENGARKAN DIALOGNYA!</p>
                     </div>
-
                 </div>
+
             </div>
 
             <div id="quiz-stage" class="w-full hidden flex-col items-center mt-2 fade-in">
@@ -75,7 +56,7 @@
             </div>
 
             <div id="feedback-container" class="hidden absolute inset-0 flex items-center justify-center bg-black/90 z-50">
-                <div id="feedback-content" class="text-center transform scale-150 transition-transform duration-300 flex flex-col items-center"></div>
+                <div id="feedback-content" class="text-center transform scale-150 transition-transform duration-300 flex flex-col items-center w-full px-4"></div>
             </div>
 
         </div>
@@ -84,6 +65,12 @@
     <script src="movies.js"></script>
 
     <script>
+        // PANGGIL YOUTUBE API
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
         let player;
         let sessionMovies = [];
         let currentIndex = 0;
@@ -94,56 +81,53 @@
         let isAnswering = false;
         let isClipPlaying = false; 
 
-        // 1. PASTIKAN DATA FILM ADA, LALU SUNTIKKAN ID-NYA KE IFRAME
-        if (typeof movieBank !== 'undefined' && movieBank.length > 0) {
+        // 1. API YOUTUBE SUDAH SIAP
+        function onYouTubeIframeAPIReady() {
+            if (typeof movieBank === 'undefined' || movieBank.length === 0) {
+                alert("Data Film kosong! Cek file movies.js"); return;
+            }
             sessionMovies = [...movieBank];
             document.getElementById('total-q').innerText = sessionMovies.length;
+            
             const firstMovie = sessionMovies[0];
             
-            // JURUS ANTI-GAGAL: Beri link asli sebelum YouTube API jalan
-            const iframe = document.getElementById('yt-player');
-            iframe.src = `https://www.youtube.com/embed/${firstMovie.videoId}?enablejsapi=1&controls=1&rel=0&playsinline=1&start=${firstMovie.startSeconds}`;
-        } else {
-            alert("File movies.js tidak terbaca atau kosong!");
-        }
-
-        // 2. PANGGIL YOUTUBE API
-        var tag = document.createElement('script');
-        tag.src = "https://www.youtube.com/iframe_api";
-        var firstScriptTag = document.getElementsByTagName('script')[0];
-        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
-        // 3. API MENYAMBUNG KE IFRAME YANG SUDAH ADA
-        function onYouTubeIframeAPIReady() {
+            // BIKIN PLAYER YOUTUBE STANDAR
             player = new YT.Player('yt-player', {
+                height: '100%', 
+                width: '100%',
+                videoId: firstMovie.videoId, // PASTIKAN ID BENAR DI MOVIES.JS
+                playerVars: { 
+                    'controls': 1, 
+                    'playsinline': 1, // Penting untuk HP agar tidak Fullscreen otomatis
+                    'start': firstMovie.startSeconds
+                },
                 events: { 
-                    'onReady': function() {
-                        console.log("Player Siap!"); // Mengunci agar siap menerima event klik
-                    },
                     'onStateChange': onPlayerStateChange
                 }
             });
         }
 
-        // 4. REAKSI KETIKA PEMAIN KLIK PLAY (1 = PLAYING)
+        // 2. DETEKSI SAAT VIDEO DIKLIK PLAY OLEH PEMAIN
         function onPlayerStateChange(event) {
+            // Jika video PLAYING (1) dan topeng belum turun
             if (event.data === YT.PlayerState.PLAYING && !isClipPlaying) {
                 isClipPlaying = true; 
                 
-                // REAKSI 1: MUNCULKAN TOPENG GELAP!
-                document.getElementById('video-mask').classList.add('active');
+                // TURUNKAN TOPENG HITAM
+                const mask = document.getElementById('video-mask');
+                mask.classList.remove('hidden');
+                mask.classList.add('flex'); // Aktifkan display flex Tailwind
                 
-                const instBox = document.getElementById('instruction-box');
-                instBox.classList.replace('bg-yellow-500/10', 'bg-red-500/20');
-                instBox.classList.replace('border-yellow-500', 'border-red-500');
-                document.getElementById('instruction-text').innerHTML = '<i class="fa-solid fa-microphone-lines text-red-500 mr-2"></i> MEREKAM ADEGAN...';
-                document.getElementById('instruction-sub').innerText = "Fokus pada suaranya!";
+                // UBAH TEKS INSTRUKSI
+                document.getElementById('instruction-text').innerHTML = '<i class="fa-solid fa-record-vinyl text-red-500 mr-2 fa-spin"></i> MEREKAM ADEGAN...';
+                document.getElementById('instruction-text').classList.remove('text-yellow-500');
+                document.getElementById('instruction-text').classList.add('text-red-500');
 
-                // REAKSI 2: HITUNG DURASI
+                // HITUNG DURASI
                 const movie = sessionMovies[currentIndex];
                 const durationMs = (movie.endSeconds - movie.startSeconds) * 1000;
 
-                // REAKSI 3: SETELAH DURASI HABIS, STOP VIDEO & MULAI KUIS
+                // BERHENTIKAN VIDEO & MULAI KUIS SETELAH DURASI HABIS
                 setTimeout(() => {
                     player.pauseVideo();
                     document.getElementById('video-stage').classList.add('hidden');
@@ -152,7 +136,7 @@
             }
         }
 
-        // 5. MULAI BABAK KUIS
+        // 3. MESIN KUIS
         function startQuizStage(stageNum) {
             isAnswering = false;
             currentStage = stageNum;
@@ -261,25 +245,27 @@
             setTimeout(() => { container.classList.add('hidden'); content.style.transform = 'scale(1.5)'; }, 1400);
         }
 
-        // 6. SIAPKAN FILM BERIKUTNYA
+        // 4. RESET UNTUK FILM BERIKUTNYA
         function nextMovie() {
             currentIndex++;
             if (currentIndex < sessionMovies.length) {
                 const movie = sessionMovies[currentIndex];
                 document.getElementById('q-number').innerText = currentIndex + 1;
                 
-                // Buka topeng & kembalikan instruksi
-                document.getElementById('video-mask').classList.remove('active');
-                const instBox = document.getElementById('instruction-box');
-                instBox.classList.replace('bg-red-500/20', 'bg-yellow-500/10');
-                instBox.classList.replace('border-red-500', 'border-yellow-500');
-                document.getElementById('instruction-text').innerHTML = '<i class="fa-brands fa-youtube text-red-500 mr-1"></i> Klik Tombol Play YouTube di bawah!';
-                document.getElementById('instruction-sub').innerText = "Video akan otomatis disensor saat mulai berbunyi.";
-
+                // Sembunyikan topeng & Kuis
+                const mask = document.getElementById('video-mask');
+                mask.classList.remove('flex');
+                mask.classList.add('hidden');
+                
                 document.getElementById('quiz-stage').classList.add('hidden');
                 document.getElementById('video-stage').classList.remove('hidden');
                 
-                // Reset Kunci & Panggil Film Baru
+                // Kembalikan Instruksi
+                document.getElementById('instruction-text').innerHTML = '<i class="fa-brands fa-youtube text-red-500 mr-1"></i> KLIK PLAY PADA VIDEO DI BAWAH!';
+                document.getElementById('instruction-text').classList.remove('text-red-500');
+                document.getElementById('instruction-text').classList.add('text-yellow-500');
+                
+                // Siapkan YouTube ke film baru
                 isClipPlaying = false;
                 player.cueVideoById({
                     videoId: movie.videoId,
